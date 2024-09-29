@@ -19,3 +19,18 @@ Rename the file .env and update the variables with your postgresql credentials.
 The following command will put some data in the database:
 
 npm run seed
+
+## Run the application locally
+
+Start your postgresql server using:
+
+sudo service postgresql start
+
+Start the application and watch for code changes
+
+npm run dev
+
+Open the application in a browser using the following url:
+
+http://127.0.0.1:3000/
+
