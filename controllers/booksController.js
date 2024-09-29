@@ -1,7 +1,15 @@
 const db = require("../db/queries/queries");
+const { strToSlug } = require("../js/utils");
+const { capitaliseArray } = require("../js/utils");
 
 exports.postNewBook = async function (req, res) {
-	await db.insertBook(req.body);
+	const newBook = req.body;
+	newBook["authorID"] = strToSlug(newBook.author);
+	newBook["genres"] = capitaliseArray(newBook["genres"].replace(/,\s*$/, "").split(","));
+
+	console.log("Posting new book:\n", newBook);
+
+	await db.insertBook(newBook);
 	res.redirect("/books");
 };
 

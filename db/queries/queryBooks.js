@@ -1,5 +1,38 @@
 const pool = require("../pool");
 
+exports.insertBook = async function (newBook) {
+	const { title, authorID, publicationYear, isFiction, genres } = newBook;
+
+	try {
+		await pool.query("BEGIN");
+
+		const insertBookQuery = `
+          INSERT INTO fact_books (book_title, author_id, publication_year, is_fiction)
+          VALUES ($1, $2, $3, $4)
+          RETURNING book_id
+      `;
+		const {
+			rows: [{ book_id: bookID }],
+		} = await pool.query(insertBookQuery, [title, authorID, publicationYear, isFiction]);
+
+		if (genres && genres.length > 0) {
+			const genreQuery = `
+        INSERT INTO book_genres (book_id, genre_id)
+        SELECT $1, genre_id FROM dim_genres
+        WHERE genre_name = ANY($2)
+      `;
+			await pool.query(genreQuery, [bookID, genres]);
+		}
+
+		await pool.query("COMMIT");
+		return bookID;
+	} catch (error) {
+		await pool.query("ROLLBACK");
+		console.error(`Error inserting book ${title}:`, error);
+		throw error;
+	}
+};
+
 exports.getAllBooks = async function () {
 	const { rows } = await pool.query(`
 		SELECT
@@ -84,45 +117,6 @@ exports.getBooksByGenre = async function (genre) {
 	return rows;
 };
 
-exports.insertBook = async function (newBook) {
-	const authorIdQuery = await pool.query(
-		"SELECT author_id FROM dim_authors WHERE (first_name || ' ' || last_name) = $1",
-		[newBook["author-name"]]
-	);
-
-	const authorId = authorIdQuery.rows[0].author_id;
-	const category = newBook["isFiction"] ? "fiction" : "non-fiction";
-
-	await pool.query(
-		"INSERT INTO fact_books (book_title, author_id, publication_year, category) VALUES ($1, $2, $3, $4)",
-		[newBook["title"], authorId, newBook["publication-year"], category]
-	);
-
-	const bookIdQuery = await pool.query("SELECT book_id FROM fact_books WHERE book_title = $1", [
-		newBook["title"],
-	]);
-
-	if (!newBook["genres"]) {
-		return;
-	}
-
-	const genres = newBook["genres"].split(", ");
-
-	for (const genre of genres) {
-		const genreIdQuery = await pool.query("SELECT genre_id FROM dim_genres WHERE genre_name = $1", [
-			genre,
-		]);
-
-		const bookId = bookIdQuery.rows[0].book_id;
-		const genreId = genreIdQuery.rows[0].genre_id;
-
-		await pool.query("INSERT INTO book_genres (book_id, genre_id) VALUES ($1, $2)", [
-			Number(bookId),
-			Number(genreId),
-		]);
-	}
-};
-
 exports.getAllDecades = async function () {
 	const { rows } = await pool.query(`
     SELECT 
@@ -132,5 +126,28 @@ exports.getAllDecades = async function () {
     GROUP BY decade
     ORDER BY decade DESC;
 	`);
+	return rows;
+};
+
+exports.getBooksByDecade = async function (decade) {
+	const { rows } = await pool.query(
+		`
+    SELECT
+      fb.book_id,
+      da.author_id,
+      fb.book_title AS title,
+      da.first_name || ' ' || da.last_name AS author,
+      fb.publication_year,
+      STRING_AGG(dg.genre_name, ',') AS genres
+    FROM fact_books fb
+    JOIN dim_authors da ON fb.author_id = da.author_id
+    JOIN book_genres bg ON fb.book_id = bg.book_id
+    JOIN dim_genres as dg ON bg.genre_id = dg.genre_id
+    WHERE fb.publication_year BETWEEN $1 AND $2
+    GROUP BY fb.book_id, da.author_id
+    ORDER BY title;
+  `,
+		[decade, decade + 9]
+	);
 	return rows;
 };
