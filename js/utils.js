@@ -1,3 +1,15 @@
+const capitalise = str => str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+
+exports.slugToStr = str => str.trim().split("-").map(capitalise).join(" ");
+
+exports.capitaliseArray = function (arr) {
+	return arr.map(str => {
+		const words = str.trim().toLowerCase().split(/\s+/);
+		const capitalisedWords = words.map(capitalise).join(" ");
+		return capitalisedWords;
+	});
+};
+
 exports.strToSlug = function (str) {
 	return str
 		.toLowerCase()
@@ -9,12 +21,47 @@ exports.strToSlug = function (str) {
 		.replace(/-+/g, "-");
 };
 
-exports.capitaliseArray = function (arr) {
-	return arr.map(str => {
-		const words = str.trim().toLowerCase().split(/\s+/);
-		const capitalisedWords = words
-			.map(word => (word = word.charAt(0).toUpperCase() + word.slice(1)))
-			.join(" ");
-		return capitalisedWords;
-	});
+exports.strToTitleCase = function (str) {
+	const articles = ["a", "an", "de", "di", "en", "the"];
+	const conjunctions = ["and", "but", "if", "or", "nor"];
+	const prepositions = ["as", "at", "by", "for", "in", "of", "on", "per", "to", "via"];
+	const versus = ["vs.", "vs", "v.", "v"];
+	const allMinorWords = [...articles, ...conjunctions, ...prepositions, ...versus];
+
+	const words = str.trim().split(/\s+/);
+	const titleCaseWords = words
+		.map((word, i) => {
+			const isFirstOrLastWord = i === 0 || i === words.length - 1;
+			const isMinorWord = allMinorWords.includes(word.toLowerCase());
+
+			if (!isFirstOrLastWord && isMinorWord) {
+				return word.toLowerCase();
+			}
+
+			if (word.includes("-")) {
+				return word.split("-").map(capitalise).join("-");
+			}
+
+			return capitalise(word);
+		})
+		.join(" ");
+
+	return titleCaseWords;
+};
+
+exports.groupDecadesByCentury = function (decades) {
+	const groupedDecades = decades.reduce((centuries, decadeEntry) => {
+		const decade = Number(decadeEntry.decade, 10);
+		const century = Math.floor(decade / 100) * 100;
+
+		if (centuries[century]) {
+			centuries[century] = centuries[century].concat([decadeEntry]);
+		} else {
+			centuries[century] = [decadeEntry];
+		}
+
+		return centuries;
+	}, {});
+
+	return groupedDecades;
 };

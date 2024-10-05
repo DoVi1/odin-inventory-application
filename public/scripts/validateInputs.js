@@ -1,25 +1,38 @@
-import { sanitiseStr } from "./utils.js";
+import { doesBookExistByAuthor } from "./checkDatabase.js";
+import { doesAuthorExist } from "./checkDatabase.js";
+import { doesGenreExist } from "./checkDatabase.js";
 
-const checkInputInArray = function (input, arr) {
-	const isInArray = arr.map(sanitiseStr).includes(sanitiseStr(input));
-	return isInArray;
+export const validateTitle = async function (book, author) {
+	const titleUnavailable = await doesBookExistByAuthor(book, author);
+
+	return !titleUnavailable;
 };
 
-export const validateAuthor = function (author, authors) {
-	const isInDatabase = checkInputInArray(author, authors);
+export const validateAuthor = async function (author) {
+	const authorExists = await doesAuthorExist(author);
 
-	if (!isInDatabase) {
-		return "Author not found";
-	}
+	return authorExists;
 };
 
-export const validateGenres = function (genresInput, genres) {
-	const isInDatabase = genresInput
+export const validateGenres = async function (genresInput) {
+	const genresArr = genresInput
 		.replace(/,\s*$/, "")
 		.split(",")
-		.every(input => checkInputInArray(input, genres));
+		.map(genre => genre.trim());
 
-	if (!isInDatabase) {
-		return "Genre(s) not found";
-	}
+	const checkedGenres = await Promise.all(
+		genresArr.map(async genre => {
+			const exists = await doesGenreExist(genre);
+			return !exists ? genre : null;
+		})
+	);
+	const notFoundGenres = checkedGenres.filter(genre => genre !== null);
+
+	return { areGenresValid: notFoundGenres.length === 0, notFoundGenres };
+};
+
+export const validateYear = function (year) {
+	const currentYear = new Date().getFullYear();
+
+	return year <= currentYear;
 };

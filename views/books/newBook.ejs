@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Inventory | <%= title %></title>
+		<link rel="stylesheet" href="../styles/index.css" />
+		<script type="module" src="../scripts/bookFormHandler.js"></script>
+	</head>
+	<body>
+		<%- include("../partials/header", { backAnchor: true }) %>
+		<h2><%= title %></h2>
+		<form action="/books" method="post" id="new-book">
+			<ul>
+				<li>
+					<label for="title">Book title*</label>
+					<input type="text" name="title" id="title" required />
+					<span class="field-message"></span>
+				</li>
+				<li>
+					<label for="author">Author*</label>
+					<input
+						type="text"
+						name="author"
+						id="author"
+						placeholder="Start typing to show suggestions"
+						required
+					/>
+					<span class="field-message"></span>
+					<ul id="author-suggestions"></ul>
+				</li>
+				<li>
+					<label for="genres">Genre(s)*</label>
+					<input
+						type="text"
+						name="genres"
+						id="genres"
+						placeholder="Start typing to show suggestions"
+						required
+					/>
+					<span class="field-message"></span>
+					<ul id="genre-suggestions"></ul>
+				</li>
+				<li>
+					<label for="publication-year">Publication year</label>
+					<input
+						type="number"
+						name="publicationYear"
+						id="publication-year"
+						max="<%= new Date().getFullYear() %>"
+					/>
+					<span class="field-message"></span>
+				</li>
+				<li>
+					<input type="radio" id="fiction" name="isFiction" value="true" checked />
+					<label for="fiction">Fiction</label>
+					<input type="radio" id="non-fiction" name="isFiction" value="false" />
+					<label for="non-fiction">Non-fiction</label>
+				</li>
+			</ul>
+			<button type="submit">Add book</button>
+		</form>
+	</body>
+</html>
