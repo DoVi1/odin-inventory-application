@@ -38,12 +38,30 @@ export const doesGenreExist = async function (genre) {
 	}
 
 	try {
-		const response = await fetch(`check-genre?genre=${encodeURIComponent(genre)}`);
+		const response = await fetch(`/books/check-genre?genre=${encodeURIComponent(genre)}`);
 		const data = await response.json();
 
 		return data.exists;
 	} catch (err) {
-		console.error(`Error fetching from endpoint check-genre?genre=${genre}:`, err);
+		console.error(`Error fetching from endpoint books/check-genre?genre=${genre}:`, err);
+		return false;
+	}
+};
+
+export const doesNationalityExist = async function (nationality) {
+	if (!nationality || nationality === "") {
+		return false;
+	}
+
+	const query = `check-nationality?nationality=${encodeURIComponent(nationality)}`;
+
+	try {
+		const response = await fetch(query);
+		const data = await response.json();
+
+		return data.exists;
+	} catch (err) {
+		console.error(`Error fetching from endpoint check-nationality?nationality=${nationality}`, err);
 		return false;
 	}
 };

@@ -1,6 +1,7 @@
 import { doesBookExistByAuthor } from "./checkDatabase.js";
 import { doesAuthorExist } from "./checkDatabase.js";
 import { doesGenreExist } from "./checkDatabase.js";
+import { doesNationalityExist } from "./checkDatabase.js";
 
 export const validateTitle = async function (book, author) {
 	const titleUnavailable = await doesBookExistByAuthor(book, author);
@@ -12,6 +13,18 @@ export const validateAuthor = async function (author) {
 	const authorExists = await doesAuthorExist(author);
 
 	return authorExists;
+};
+
+export const validateAuthorName = async function (author) {
+	const authorExists = await doesAuthorExist(author);
+
+	return !authorExists;
+};
+
+export const validateGenre = async function (genre) {
+	const genreExists = await doesGenreExist(genre);
+
+	return !genreExists;
 };
 
 export const validateGenres = async function (genresInput) {
@@ -35,4 +48,10 @@ export const validateYear = function (year) {
 	const currentYear = new Date().getFullYear();
 
 	return year <= currentYear;
+};
+
+export const validateNationality = async function (nationality) {
+	const nationalityExists = await doesNationalityExist(nationality);
+
+	return nationalityExists;
 };

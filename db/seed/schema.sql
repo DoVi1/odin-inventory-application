@@ -1,7 +1,7 @@
 DROP TABLE IF EXISTS book_languages;
 DROP TABLE IF EXISTS book_genres;
 DROP TABLE IF EXISTS fact_books;
-DROP TABLE IF EXISTS dim_languages;
+DROP TABLE IF EXISTS dim_countries;
 DROP TABLE IF EXISTS dim_genres;
 DROP TABLE IF EXISTS dim_authors;
 
@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS dim_authors (
   first_name VARCHAR(32),
   last_name VARCHAR(32),
   birth_year INT,
-  nationality VARCHAR(32)
+  nationality VARCHAR(32),
+  biography VARCHAR(400)
 );
 
 CREATE TABLE IF NOT EXISTS dim_genres (
@@ -31,7 +32,8 @@ CREATE TABLE IF NOT EXISTS fact_books (
   book_title VARCHAR(64),
   author_id VARCHAR(64) REFERENCES dim_authors(author_id),
   publication_year INT,
-  is_fiction BOOLEAN
+  is_fiction BOOLEAN,
+  book_description VARCHAR(400)
 );
 
 CREATE TABLE IF NOT EXISTS book_genres (
