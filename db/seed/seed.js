@@ -3,6 +3,8 @@
 const { Client } = require("pg");
 const fs = require("fs").promises;
 const path = require("path");
+const chalk = require("chalk");
+const logger = require("../../js/logger");
 
 require("dotenv").config();
 
@@ -10,8 +12,6 @@ const insertAuthors = require("./scripts/insertAuthors");
 const insertGenres = require("./scripts/insertGenres");
 const insertCountries = require("./scripts/insertCountries");
 const insertBooks = require("./scripts/insertBooks");
-const insertBookGenres = require("./scripts/insertBookGenres");
-const insertBookLanguages = require("./scripts/insertBookLanguages");
 
 const isProduction = process.env.NODE_ENV === "production";
 const sslConfig = isProduction ? "?sslmode=require" : "";
@@ -22,7 +22,7 @@ function getArgumentValue(flag, defaultValue) {
 }
 
 async function main() {
-	console.log("Seeding...");
+	logger.info("Seeding initialised...");
 
 	const user = getArgumentValue("--user", process.env.USER);
 	const password = getArgumentValue("--password", process.env.PASSWORD);
@@ -34,25 +34,39 @@ async function main() {
 		ssl: isProduction ? { rejectUnauthorized: false } : false,
 	});
 
+	let countriesAddedCount, countriesFailed;
+	let authorsAddedCount, authorsFailed;
+	let genresAddedCount, genresFailed;
+	let booksAddedCount, booksFailed;
+
 	try {
 		await client.connect();
 
 		const schema = await fs.readFile(path.join(__dirname, "schema.sql"), "utf8");
 		await client.query(schema);
-		console.log("Schema created successfully");
+		logger.separator();
+		console.log("> Schema successfully created");
 
-		await insertAuthors(client);
-		await insertGenres(client);
-		await insertCountries(client);
-		await insertBooks(client);
-		await insertBookGenres(client);
-		await insertBookLanguages(client);
-
-		console.log("Seeding complete");
-	} catch (e) {
-		console.log("An error occurred during seeding", e);
+		({ countriesAddedCount, countriesFailed } = await insertCountries(client));
+		({ authorsAddedCount, authorsFailed } = await insertAuthors(client));
+		({ genresAddedCount, genresFailed } = await insertGenres(client));
+		({ booksAddedCount, booksFailed } = await insertBooks(client));
+	} catch (err) {
+		logger.error("An error occurred during seeding", err);
 	} finally {
 		await client.end();
+		logger.summary({
+			countriesAddedCount,
+			countriesFailed,
+			authorsAddedCount,
+			authorsFailed,
+			genresAddedCount,
+			genresFailed,
+			booksAddedCount,
+			booksFailed,
+		});
+		logger.info("Seeding complete!");
+		logger.separator();
 	}
 }
 

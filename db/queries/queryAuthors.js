@@ -1,29 +1,32 @@
 const pool = require("../pool");
+const logger = require("../../js/logger");
 
 exports.insertAuthor = async function (newAuthor) {
-	const { authorID, firstName, lastName, birthYear, nationality, biography } = newAuthor;
-
-	const query = `
-    INSERT INTO dim_authors (author_id, first_name, last_name, birth_year, nationality, biography)
-    VALUES ($1, $2, $3, $4, $5, $6)
-  `;
-
 	try {
-		await pool.query(query, [authorID, firstName, lastName, birthYear, nationality, biography]);
-	} catch (error) {
-		console.error(`Error inserting author ${firstName} ${lastName}:`, error);
-		throw error;
+		await newAuthor.fetchCountryID();
+
+		await pool.query(
+			`
+      INSERT INTO dim_authors (country_id, slug, first_name, last_name, birth_year, biography)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      `,
+			Object.values(newAuthor.toDbEntry())
+		);
+	} catch (err) {
+		logger.error(`Error inserting author ${JSON.stringify(newAuthor, null, 2)}.`, err);
+		throw err;
 	}
 };
 
-exports.checkAuthor = async function (authorID) {
+exports.checkAuthor = async function (slug) {
+	console.log(slug);
 	const query = `
 		SELECT 1 FROM dim_authors
-		WHERE author_id = $1
+		WHERE slug = $1
 		LIMIT 1;
 	`;
 
-	const result = await pool.query(query, [authorID]);
+	const result = await pool.query(query, [slug]);
 	const authorExists = result.rowCount > 0;
 
 	return authorExists;
@@ -32,7 +35,7 @@ exports.checkAuthor = async function (authorID) {
 exports.getAuthorNames = async function () {
 	const { rows } = await pool.query(`
     SELECT
-      author_id AS id,
+      id,
       first_name || ' ' || last_name AS name
     FROM dim_authors
     ORDER BY last_name;
@@ -42,31 +45,27 @@ exports.getAuthorNames = async function () {
 
 exports.getAllAuthors = async function () {
 	const { rows } = await pool.query(`
-    WITH GenreCounts AS (
-      SELECT
-        fb.author_id,
-        dg.genre_name,
-        COUNT(DISTINCT fb.book_id) AS genre_count
-      FROM fact_books fb
-      JOIN book_genres bg ON fb.book_id = bg.book_id
-      JOIN dim_genres dg ON bg.genre_id = dg.genre_id
-      GROUP BY fb.author_id, dg.genre_name
-    )
     SELECT
-      da.author_id,
-      da.first_name || ' ' || da.last_name AS author_name,
-      da.birth_year,
-      da.nationality,
-      COALESCE((
-        SELECT STRING_AGG(gc.genre_name, ',' ORDER BY gc.genre_count DESC, gc.genre_name)
-        FROM GenreCounts gc
-        WHERE gc.author_id = da.author_id
-      ), '') AS genres,
-      COUNT(DISTINCT fb.book_id) AS number_of_books
-    FROM dim_authors da
-    LEFT JOIN fact_books fb ON da.author_id = fb.author_id
-    GROUP BY da.author_id, da.first_name, da.last_name, da.birth_year, da.nationality
-    ORDER BY da.last_name;
+      author.id,
+      country.id AS country_id,
+      author.slug,
+      country.slug AS country_slug,
+      author.first_name || ' ' || author.last_name AS name,
+      author.birth_year,
+      country.nationality,
+      country.name AS country,
+      COUNT(DISTINCT book.id) AS number_of_books
+    FROM dim_authors AS author
+    LEFT JOIN fact_books AS book ON author.id = book.author_id
+    JOIN dim_countries AS country ON author.country_id = country.id
+    GROUP BY author.id, country.id
+    ORDER BY (
+      CASE
+        WHEN LOWER(SPLIT_PART(author.last_name, ' ', 1)) IN ('al', 'bin', 'bint', 'da', 'de', 'del', 'della', 'di', 'dos', 'du', 'ibn', 'la', 'las', 'le', 'los', 'van', 'vom', 'von', 'zu')
+        THEN SPLIT_PART(author.last_name, ' ', 2)
+        ELSE unaccent(author.last_name)
+      END
+    );
 	`);
 	return rows;
 };
@@ -74,9 +73,19 @@ exports.getAllAuthors = async function () {
 exports.getAuthorByID = async function (id) {
 	const { rows } = await pool.query(
 		`
-  		SELECT first_name || ' ' || last_name AS author FROM dim_authors WHERE author_id = $1;
+  		SELECT first_name || ' ' || last_name AS author FROM dim_authors WHERE id = $1;
   `,
 		[id]
 	);
 	return rows;
+};
+
+exports.getAuthorIDByName = async function (name) {
+	const { rows } = await pool.query(
+		`
+      SELECT id FROM dim_authors WHERE first_name || ' ' || last_name = $1;
+    `,
+		[name]
+	);
+	return rows[0].id;
 };

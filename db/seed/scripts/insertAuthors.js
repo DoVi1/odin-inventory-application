@@ -1,28 +1,32 @@
-const fs = require("fs").promises;
 const path = require("path");
-const { strToSlug } = require("../../../js/utils");
+const fs = require("fs").promises;
+const Author = require("../../../models/Author");
+const db = require("../../queries/index");
+const logger = require("../../../js/logger");
 
-async function insertAuthors(client) {
+async function insertAuthors() {
 	const filePath = path.join(__dirname, "../../data", "authors.json");
-	const data = await fs.readFile(filePath, "utf8");
-	const authors = JSON.parse(data);
+	const authorsData = await fs.readFile(filePath, "utf8").then(data => JSON.parse(data));
 
-	for (const author of authors) {
-		author.id = strToSlug(`${author.firstName} ${author.lastName}`);
+	const authorsFailed = [];
+	let authorsAddedCount = 0;
 
-		await client.query(
-			"INSERT INTO dim_authors (author_id, first_name, last_name, birth_year, nationality, biography) VALUES ($1, $2, $3, $4, $5, $6)",
-			[
-				author.id,
-				author.firstName,
-				author.lastName,
-				author.birthYear,
-				author.nationality,
-				author.biography,
-			]
-		);
+	for (const entry of authorsData) {
+		const author = new Author(entry);
+
+		try {
+			await db.authors.insertAuthor(author);
+			authorsAddedCount += 1;
+		} catch (err) {
+			authorsFailed.push(`${author.firstName} ${author.lastName}`);
+			continue;
+		}
 	}
-	console.log("Authors inserted successfully");
+	console.log(
+		`> ${authorsAddedCount} authors inserted successfully (${authorsFailed.length} failures)`
+	);
+
+	return { authorsAddedCount, authorsFailed };
 }
 
 module.exports = insertAuthors;

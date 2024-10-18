@@ -1,31 +1,29 @@
-const fs = require("fs").promises;
 const path = require("path");
+const fs = require("fs").promises;
+const Book = require("../../../models/Book");
+const db = require("../../queries/index");
 
-async function insertBooks(client) {
+async function insertBooks() {
 	const filePath = path.join(__dirname, "../../data", "books.json");
-	const data = await fs.readFile(filePath, "utf8");
-	const books = JSON.parse(data);
+	const booksData = await fs.readFile(filePath, "utf8").then(data => JSON.parse(data));
 
-	for (const book of books) {
-		const author = book.author;
-		const authorIdQuery = await client.query(
-			"SELECT author_id FROM dim_authors WHERE (first_name || ' ' || last_name) = $1",
-			[author]
-		);
+	const booksFailed = [];
+	let booksAddedCount = 0;
 
-		if (authorIdQuery.rows.length === 0) {
-			console.log(`Author not found for surname: ${author}`);
+	for (const entry of booksData) {
+		const book = new Book(entry);
+
+		try {
+			await db.books.insertBook(book);
+			booksAddedCount += 1;
+		} catch (err) {
+			booksFailed.push(book.title);
 			continue;
 		}
-
-		const authorId = authorIdQuery.rows[0].author_id;
-
-		await client.query(
-			"INSERT INTO fact_books (book_title, author_id, publication_year, is_fiction, book_description) VALUES ($1, $2, $3, $4, $5)",
-			[book.bookTitle, authorId, book.publicationYear, book.isFiction, book.description]
-		);
 	}
-	console.log("Books inserted successfully");
+	console.log(`> ${booksAddedCount} books inserted successfully (${booksFailed.length} failures)`);
+
+	return { booksAddedCount, booksFailed };
 }
 
 module.exports = insertBooks;

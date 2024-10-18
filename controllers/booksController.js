@@ -4,9 +4,7 @@ const { strToSlug } = require("../js/utils");
 const { strToTitleCase } = require("../js/utils");
 
 exports.postNewBook = async function (req, res) {
-	const { title, description, author, genres, publicationYear } = req.body;
-	const newBook = new Book({ title, description, author, genres, publicationYear });
-
+	const newBook = new Book(req.body);
 	console.log("Posting new book:\n", newBook);
 
 	try {
@@ -36,41 +34,13 @@ exports.checkBookTitle = async function (req, res) {
 	}
 };
 
-exports.checkAuthor = async function (req, res) {
-	const author = strToTitleCase(req.query.author);
-
-	if (!author) {
-		return;
-	}
-
-	try {
-		const authorID = strToSlug(author);
-		const exists = await db.authors.checkAuthor(authorID);
-		res.json({ exists, author });
-	} catch (err) {
-		console.error(`Error checking author ${author}`);
-		res.status(500).json({ error: "Server error" });
-	}
-};
-
-exports.checkGenre = async function (req, res) {
-	const genre = strToTitleCase(req.query.genre);
-
-	if (!genre) {
-		return;
-	}
-
-	try {
-		const exists = await db.genres.checkGenre(genre);
-		res.json({ exists, genre });
-	} catch (err) {
-		console.error(`Error checking genre ${genre}`, err);
-		res.status(500).json({ error: "Server error" });
-	}
-};
-
 exports.getAllBooks = async function (req, res) {
 	const books = await db.books.getAllBooks();
+
+	await Promise.all(
+		books.map(book => db.genres.getGenresByBook(book.id).then(genres => (book.genres = genres)))
+	);
+
 	res.render("./books/books", { title: "Books", books });
 };
 

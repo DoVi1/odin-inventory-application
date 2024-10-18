@@ -4,11 +4,11 @@
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 		<title>Inventory | <%= decade %></title>
-		<link rel="stylesheet" href="../styles/index.css" />
+		<link rel="stylesheet" href="/styles/index.css" />
 	</head>
 	<body>
 		<%- include("../partials/header", { backAnchor: true }) %>
-		<h2><%= decade %>s</h2>
+		<h2><%= decade %></h2>
 		<%- include("../partials/booksTable", { books }) %>
 	</body>
 </html>

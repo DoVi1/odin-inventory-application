@@ -1,49 +1,47 @@
 const pool = require("../pool");
+const logger = require("../../js/logger");
 
 exports.insertBook = async function (newBook) {
-	const { title, authorID, publicationYear, isFiction, genres, description } = newBook;
-
 	try {
 		await pool.query("BEGIN");
+		await newBook.fetchAuthorID();
+		const result = await pool.query(
+			`
+      INSERT INTO fact_books (author_id, slug, title, publication_year, is_fiction, description)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING fact_books.id
+      `,
+			Object.values(newBook.toDbEntry())
+		);
 
-		const insertBookQuery = `
-          INSERT INTO fact_books (book_title, author_id, publication_year, is_fiction, book_description)
-          VALUES ($1, $2, $3, $4, $5)
-          RETURNING book_id
-      `;
-		const {
-			rows: [{ book_id: bookID }],
-		} = await pool.query(insertBookQuery, [
-			title,
-			authorID,
-			publicationYear,
-			isFiction,
-			description,
-		]);
+		const bookID = result.rows[0].id;
+		const genres = newBook.genres;
 
 		if (genres && genres.length > 0) {
 			const genreQuery = `
         INSERT INTO book_genres (book_id, genre_id)
-        SELECT $1, genre_id FROM dim_genres
-        WHERE genre_name = ANY($2)
+        SELECT $1, id FROM dim_genres AS genre
+        WHERE genre.name = ANY($2)
       `;
 			await pool.query(genreQuery, [bookID, genres]);
 		}
 
 		await pool.query("COMMIT");
 		return bookID;
-	} catch (error) {
+	} catch (err) {
 		await pool.query("ROLLBACK");
-		console.error(`Error inserting book ${title}:`, error);
-		throw error;
+		logger.error(`Error inserting book ${JSON.stringify(newBook, null, 2)}.`, err);
+		throw err;
 	}
 };
 
 exports.checkBookTitle = async function (title, authorID) {
 	const query = `
-		SELECT 1 FROM fact_books
-		WHERE book_title = $1
-      AND author_id = $2
+		SELECT 1
+    FROM fact_books AS book
+    JOIN dim_authors AS author ON book.author_id = author.id
+		WHERE book.title = $1
+      AND author.slug = $2
 		LIMIT 1;
 	`;
 
@@ -56,18 +54,17 @@ exports.checkBookTitle = async function (title, authorID) {
 exports.getAllBooks = async function () {
 	const { rows } = await pool.query(`
 		SELECT
-      fb.book_id,
-      da.author_id,
-      fb.book_title AS title,
-      da.first_name || ' ' || da.last_name AS author,
-      fb.publication_year,
-      STRING_AGG(dg.genre_name, ',') AS genres
-    FROM fact_books fb
-    JOIN dim_authors da ON fb.author_id = da.author_id
-    JOIN book_genres bg ON fb.book_id = bg.book_id
-    JOIN dim_genres as dg ON bg.genre_id = dg.genre_id
-    GROUP BY fb.book_id, da.author_id
-    ORDER BY title;
+      book.id,
+      book.author_id,
+      book.slug,
+      author.slug AS author_slug,
+      book.title,
+      author.first_name || ' ' || author.last_name AS author,
+      book.publication_year
+    FROM fact_books AS book
+    JOIN dim_authors AS author ON book.author_id = author.id
+    GROUP BY book.id, author.id
+    ORDER BY book.title, author;
 	`);
 	return rows;
 };
@@ -75,10 +72,12 @@ exports.getAllBooks = async function () {
 exports.getBook = async function (bookID) {
 	const { rows } = await pool.query(
 		`
-		SELECT fb.*, da.first_name || ' ' || da.last_name AS author
-    FROM fact_books fb
-    JOIN dim_authors da ON fb.author_id = da.author_id
-    WHERE book_id = $1;
+		SELECT
+      book.*,
+      author.first_name || ' ' || author.last_name AS author
+    FROM fact_books AS book
+    JOIN dim_authors AS author ON book.author_id = author.id
+    WHERE book.id = $1;
   `,
 		[bookID]
 	);
@@ -89,18 +88,20 @@ exports.getBooksByAuthor = async function (author) {
 	const { rows } = await pool.query(
 		`
     SELECT
-      fb.book_id,
-      da.author_id,
-      fb.book_title AS title,
-      da.first_name || ' ' || da.last_name AS author,
-      fb.publication_year,
-      STRING_AGG(dg.genre_name, ', ') AS genres
-    FROM fact_books fb
-    JOIN dim_authors da ON fb.author_id = da.author_id
-    LEFT JOIN book_genres bg ON fb.book_id = bg.book_id
-    LEFT JOIN dim_genres as dg ON bg.genre_id = dg.genre_id
-    WHERE da.first_name || ' ' || da.last_name = $1
-    GROUP BY fb.book_id, da.author_id
+      book.id,
+      book.author_id,
+      book.slug,
+      author.slug AS author_slug,
+      book.title,
+      author.first_name || ' ' || author.last_name AS author,
+      book.publication_year,
+      STRING_AGG(genre.name, ', ') AS genres
+    FROM fact_books AS book
+    JOIN dim_authors AS author ON book.author_id = author.id
+    LEFT JOIN book_genres AS bg ON book.id = bg.book_id
+    LEFT JOIN dim_genres AS genre ON bg.genre_id = genre.id
+    WHERE author.first_name || ' ' || author.last_name = $1
+    GROUP BY book.id, author.id
     ORDER BY title;
 	`,
 		[author]
@@ -112,25 +113,24 @@ exports.getBooksByGenre = async function (genre) {
 	const { rows } = await pool.query(
 		`
     SELECT
-      fb.book_id,
-      da.author_id,
-      fb.book_title AS title,
-      da.first_name || ' ' || da.last_name AS author,
-      fb.publication_year,
-    STRING_AGG(dg.genre_name, ', ') AS genres
-    FROM fact_books fb
-    JOIN dim_authors da ON fb.author_id = da.author_id
-    JOIN book_genres bg ON fb.book_id = bg.book_id
-    JOIN dim_genres dg ON bg.genre_id = dg.genre_id
-    WHERE fb.book_id IN (
-      SELECT fb2.book_id
-      FROM fact_books fb2
-      JOIN book_genres bg2 ON fb2.book_id = bg2.book_id
-      JOIN dim_genres dg2 ON bg2.genre_id = dg2.genre_id
-      WHERE dg2.genre_name = $1
+      book.id,
+      book.author_id,
+      author.slug AS author_slug,
+      book.slug,
+      book.title,
+      author.first_name || ' ' || author.last_name AS author,
+      book.publication_year
+    FROM fact_books AS book
+    JOIN dim_authors AS author ON book.author_id = author.id
+    WHERE book.id IN (
+      SELECT book2.id
+      FROM fact_books AS book2
+      JOIN book_genres AS bg2 ON book2.id = bg2.book_id
+      JOIN dim_genres AS genre2 ON bg2.genre_id = genre2.id
+      WHERE genre2.id = $1
     )
-    GROUP BY fb.book_id, da.author_id
-    ORDER BY title
+    GROUP BY book.id, author.id
+    ORDER BY book.title, author;
 	`,
 		[genre]
 	);
@@ -144,7 +144,7 @@ exports.getAllDecades = async function () {
       COUNT(*) AS number_of_books
     FROM fact_books
     GROUP BY decade
-    ORDER BY decade DESC;
+    ORDER BY decade;
 	`);
 	return rows;
 };
@@ -153,21 +153,49 @@ exports.getBooksByDecade = async function (decade) {
 	const { rows } = await pool.query(
 		`
     SELECT
-      fb.book_id,
-      da.author_id,
-      fb.book_title AS title,
-      da.first_name || ' ' || da.last_name AS author,
-      fb.publication_year,
-      STRING_AGG(dg.genre_name, ',') AS genres
-    FROM fact_books fb
-    JOIN dim_authors da ON fb.author_id = da.author_id
-    LEFT JOIN book_genres bg ON fb.book_id = bg.book_id
-    LEFT JOIN dim_genres as dg ON bg.genre_id = dg.genre_id
-    WHERE fb.publication_year BETWEEN $1 AND $2
-    GROUP BY fb.book_id, da.author_id
-    ORDER BY title;
+      book.id,
+      book.author_id,
+      book.slug,
+      author.slug AS author_slug,
+      author.first_name || ' ' || author.last_name AS author,
+      book.title AS title,
+      book.publication_year,
+      STRING_AGG(genre.name, ',') AS genres
+    FROM fact_books AS book
+    JOIN dim_authors AS author ON book.author_id = author.id
+    LEFT JOIN book_genres AS bg ON book.id = bg.book_id
+    LEFT JOIN dim_genres AS genre ON bg.genre_id = genre.id
+    WHERE book.publication_year BETWEEN $1 AND $2
+    GROUP BY book.id, author.id
+    ORDER BY book.title, author;
   `,
 		[decade, decade + 9]
+	);
+	return rows;
+};
+
+exports.getBooksByCountry = async function (country) {
+	const { rows } = await pool.query(
+		`
+    SELECT
+      book.id,
+      book.author_id,
+      book.slug,
+      author.slug AS author_slug,
+      author.first_name || ' ' || author.last_name AS author,
+      book.title,
+      book.publication_year,
+      STRING_AGG(genre.name, ',') AS genres
+    FROM fact_books AS book
+    JOIN dim_authors AS author ON book.author_id = author.id
+    LEFT JOIN book_genres AS bg ON book.id = bg.book_id
+    LEFT JOIN dim_genres AS genre ON bg.genre_id = genre.id
+    JOIN dim_countries AS country ON author.country_id = country.id
+    WHERE country.id = $1
+    GROUP BY book.id, author.id
+    ORDER BY book.title, author;
+  `,
+		[country]
 	);
 	return rows;
 };

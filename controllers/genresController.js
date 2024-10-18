@@ -1,6 +1,8 @@
 const db = require("../db/queries/index");
 const Genre = require("../models/Genre");
-const { strToSlug, slugToStr } = require("../js/utils");
+const { strToSlug } = require("../js/utils");
+const { slugToStr } = require("../js/utils");
+const { strToTitleCase } = require("../js/utils");
 
 exports.postNewGenre = async function (req, res) {
 	const newGenre = new Genre(req.body);
@@ -17,7 +19,7 @@ exports.postNewGenre = async function (req, res) {
 
 exports.getAllGenres = async function (req, res) {
 	const genres = await db.genres.getAllGenres();
-	genres.forEach(genre => (genre.slug = strToSlug(genre.genre)));
+	genres.forEach(genre => (genre.slug = strToSlug(genre.name)));
 	res.render("./genres/genres", { title: "Genres", genres });
 };
 
@@ -26,10 +28,31 @@ exports.getNewGenreForm = function (req, res) {
 };
 
 exports.getBooksByGenre = async function (req, res) {
-	const genreSlug = req.params.genre;
-	const genre = slugToStr(genreSlug);
-	const books = await db.books.getBooksByGenre(genre);
+	const genreID = req.params.genre;
+	const { genre } = (await db.genres.getGenreByID(genreID))[0];
+	const books = await db.books.getBooksByGenre(genreID);
+
+	await Promise.all(
+		books.map(book => db.genres.getGenresByBook(book.id).then(genres => (book.genres = genres)))
+	);
+
 	res.render("./genres/genre", { title: "Genres", genre, books });
+};
+
+exports.checkGenre = async function (req, res) {
+	const genre = strToTitleCase(req.query.genre);
+
+	if (!genre) {
+		return;
+	}
+
+	try {
+		const exists = await db.genres.checkGenre(genre);
+		res.json({ exists, genre });
+	} catch (err) {
+		console.error(`Error checking genre ${genre}`, err);
+		res.status(500).json({ error: "Server error" });
+	}
 };
 
 exports.getGenreNames = async function (req, res) {
