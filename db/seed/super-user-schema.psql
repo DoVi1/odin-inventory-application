@@ -1,0 +1,5 @@
+\list
+\c odin_inventory 
+CREATE EXTENSION IF NOT EXISTS unaccent;
+\dx
+

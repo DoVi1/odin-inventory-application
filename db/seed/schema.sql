@@ -5,7 +5,13 @@ DROP TABLE IF EXISTS dim_genres;
 DROP TABLE IF EXISTS dim_authors;
 DROP TABLE IF EXISTS dim_countries;
 
+/*
+The next line doesn't work if the database user is not the
+super user in postgresql.
+Move it in another script (su-seed) only run once at project creation by
+the super-user ?
 CREATE EXTENSION IF NOT EXISTS unaccent;
+*/
 
 CREATE TABLE IF NOT EXISTS dim_countries (
   id INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY (START WITH 101),

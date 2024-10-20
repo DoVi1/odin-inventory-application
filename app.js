@@ -24,4 +24,5 @@ app.use("/decades", decadesRouter);
 app.use("/countries", countriesRouter);
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`server listening on port ${port}`));
+const host = process.env.HOST || "127.0.0.1";
+app.listen(port, () => console.log(`server listening on port ${port} , application available here: http://${host}:${port}/ `));

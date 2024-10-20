@@ -8,6 +8,7 @@
 		"start": "node app.js",
 		"dev": "node --watch app.js",
 		"seed": "node db/seed/seed.js",
+		"su-seed": "./db/seed/su-seed.sh",
 		"queryDb": "psql -d odin_inventory_app -c \"$QUERY\" > query.txt"
 	},
 	"keywords": [],
